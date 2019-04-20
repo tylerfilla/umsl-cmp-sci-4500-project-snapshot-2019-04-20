@@ -7,6 +7,7 @@ cmake_minimum_required(VERSION 3.4)
 project(cozmonaut)
 
 set(cozmo_SRC_FILES
+        src/log.c
         src/main.c
         )
 
