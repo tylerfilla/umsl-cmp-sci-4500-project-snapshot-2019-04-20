@@ -7,10 +7,16 @@
 #include "log.h"
 
 int main() {
-  LOGT("Hello, {}!", LOG_ARG_STR("trace"));
-  LOGD("Hello, {}!", LOG_ARG_STR("debug"));
-  LOGI("Hello, {}!", LOG_ARG_STR("info"));
-  LOGW("Hello, {}!", LOG_ARG_STR("warn"));
-  LOGE("Hello, {}!", LOG_ARG_STR("error"));
-  LOGF("Hello, {}!", LOG_ARG_STR("fatal"));
+  LOGT("Hello, {}!", _str("trace"));
+  LOGD("Hello, {}!", _str("debug"));
+  LOGI("Hello, {}!", _str("info"));
+  LOGW("Hello, {}!", _str("warn"));
+  LOGE("Hello, {}!", _str("error"));
+  LOGF("Hello, {}!", _str("fatal"));
+
+  LOGI("{} {} {}", _c('a'), _uc('b'), _sc('c'));
+  LOGI("{} {}", _s(1), _us(2));
+  LOGI("{} {}", _i(3), _ui(4));
+  LOGI("{} {}", _l(5), _ul(6));
+  LOGI("{} {}", _ll(7), _ull(8));
 }

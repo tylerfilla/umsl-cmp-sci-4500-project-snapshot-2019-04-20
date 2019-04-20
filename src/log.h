@@ -41,14 +41,40 @@ struct log_record {
 struct log_record_msg_fmt_arg {
   /** The argument value. */
   union {
+    char as_char;
+    signed char as_signed_char;
+    unsigned char as_unsigned_char;
+    signed short int as_signed_short_int;
+    unsigned short int as_unsigned_short_int;
+    signed int as_signed_int;
+    unsigned int as_unsigned_int;
+    signed long int as_signed_long_int;
+    unsigned long int as_unsigned_long_int;
+    signed long long int as_signed_long_long_int;
+    unsigned long long int as_unsigned_long_long_int;
     const char* as_string;
   } value;
 
   /** The argument type. */
   enum {
+    log_record_msg_fmt_arg_type_char,
+    log_record_msg_fmt_arg_type_signed_char,
+    log_record_msg_fmt_arg_type_unsigned_char,
+    log_record_msg_fmt_arg_type_signed_short_int,
+    log_record_msg_fmt_arg_type_unsigned_short_int,
+    log_record_msg_fmt_arg_type_signed_int,
+    log_record_msg_fmt_arg_type_unsigned_int,
+    log_record_msg_fmt_arg_type_signed_long_int,
+    log_record_msg_fmt_arg_type_unsigned_long_int,
+    log_record_msg_fmt_arg_type_signed_long_long_int,
+    log_record_msg_fmt_arg_type_unsigned_long_long_int,
     log_record_msg_fmt_arg_type_string,
   } type;
 };
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /**
  * Submit a log record.
@@ -56,6 +82,10 @@ struct log_record_msg_fmt_arg {
  * @param rec The record
  */
 void log_submit(const struct log_record* rec);
+
+#ifdef __cplusplus
+} // extern "C"
+#endif
 
 /** @private */
 #define LOG__MSG_FMT_ARGS(...) \
@@ -131,6 +161,171 @@ void log_submit(const struct log_record* rec);
 #define LOGF(fmt, ...) LOG(log_level_fatal, (fmt), ##__VA_ARGS__)
 
 /**
+ * Annotate a char format argument.
+ *
+ * @param x The argument
+ */
+#define LOG_ARG_C(x)                            \
+    (struct log_record_msg_fmt_arg) {           \
+      .value.as_char = (x),                     \
+      .type = log_record_msg_fmt_arg_type_char, \
+    }
+
+#ifndef LOG_NO_SHORT_ARGS
+#define _c LOG_ARG_C
+#endif
+
+/**
+ * Annotate a signed char format argument.
+ *
+ * @param x The argument
+ */
+#define LOG_ARG_SC(x)                                   \
+    (struct log_record_msg_fmt_arg) {                   \
+      .value.as_signed_char = (x),                      \
+      .type = log_record_msg_fmt_arg_type_signed_char,  \
+    }
+
+#ifndef LOG_NO_SHORT_ARGS
+#define _sc LOG_ARG_SC
+#endif
+
+/**
+ * Annotate an unsigned char format argument.
+ *
+ * @param x The argument
+ */
+#define LOG_ARG_UC(x)                                     \
+    (struct log_record_msg_fmt_arg) {                     \
+      .value.as_unsigned_char = (x),                      \
+      .type = log_record_msg_fmt_arg_type_unsigned_char,  \
+    }
+
+#ifndef LOG_NO_SHORT_ARGS
+#define _uc LOG_ARG_UC
+#endif
+
+/**
+ * Annotate a signed short int format argument.
+ *
+ * @param x The argument
+ */
+#define LOG_ARG_S(x)                                        \
+    (struct log_record_msg_fmt_arg) {                       \
+      .value.as_signed_short_int = (x),                     \
+      .type = log_record_msg_fmt_arg_type_signed_short_int, \
+    }
+
+#ifndef LOG_NO_SHORT_ARGS
+#define _s LOG_ARG_S
+#endif
+
+/**
+ * Annotate an unsigned short int format argument.
+ *
+ * @param x The argument
+ */
+#define LOG_ARG_US(x)                                         \
+    (struct log_record_msg_fmt_arg) {                         \
+      .value.as_unsigned_short_int = (x),                     \
+      .type = log_record_msg_fmt_arg_type_unsigned_short_int, \
+    }
+
+#ifndef LOG_NO_SHORT_ARGS
+#define _us LOG_ARG_US
+#endif
+
+/**
+ * Annotate a signed int format argument.
+ *
+ * @param x The argument
+ */
+#define LOG_ARG_I(x)                                  \
+    (struct log_record_msg_fmt_arg) {                 \
+      .value.as_signed_int = (x),                     \
+      .type = log_record_msg_fmt_arg_type_signed_int, \
+    }
+
+#ifndef LOG_NO_SHORT_ARGS
+#define _i LOG_ARG_I
+#endif
+
+/**
+ * Annotate an unsigned int format argument.
+ *
+ * @param x The argument
+ */
+#define LOG_ARG_UI(x)                                   \
+    (struct log_record_msg_fmt_arg) {                   \
+      .value.as_unsigned_int = (x),                     \
+      .type = log_record_msg_fmt_arg_type_unsigned_int, \
+    }
+
+#ifndef LOG_NO_SHORT_ARGS
+#define _ui LOG_ARG_UI
+#endif
+
+/**
+ * Annotate a signed long int format argument.
+ *
+ * @param x The argument
+ */
+#define LOG_ARG_L(x)                                        \
+    (struct log_record_msg_fmt_arg) {                       \
+      .value.as_signed_long_int = (x),                      \
+      .type = log_record_msg_fmt_arg_type_signed_long_int,  \
+    }
+
+#ifndef LOG_NO_SHORT_ARGS
+#define _l LOG_ARG_L
+#endif
+
+/**
+ * Annotate an unsigned long int argument.
+ *
+ * @param x The argument
+ */
+#define LOG_ARG_UL(x)                                         \
+    (struct log_record_msg_fmt_arg) {                         \
+      .value.as_unsigned_long_int = (x),                      \
+      .type = log_record_msg_fmt_arg_type_unsigned_long_int,  \
+    }
+
+#ifndef LOG_NO_SHORT_ARGS
+#define _ul LOG_ARG_UL
+#endif
+
+/**
+ * Annotate a signed long long int format argument.
+ *
+ * @param x The argument
+ */
+#define LOG_ARG_LL(x)                                           \
+    (struct log_record_msg_fmt_arg) {                           \
+      .value.as_signed_long_long_int = (x),                     \
+      .type = log_record_msg_fmt_arg_type_signed_long_long_int, \
+    }
+
+#ifndef LOG_NO_SHORT_ARGS
+#define _ll LOG_ARG_LL
+#endif
+
+/**
+ * Annotate an unsigned long long int format argument.
+ *
+ * @param x The argument
+ */
+#define LOG_ARG_ULL(x)                                            \
+    (struct log_record_msg_fmt_arg) {                             \
+      .value.as_unsigned_long_long_int = (x),                     \
+      .type = log_record_msg_fmt_arg_type_unsigned_long_long_int, \
+    }
+
+#ifndef LOG_NO_SHORT_ARGS
+#define _ull LOG_ARG_ULL
+#endif
+
+/**
  * Annotate a string format argument.
  *
  * @param x The argument
@@ -140,5 +335,9 @@ void log_submit(const struct log_record* rec);
       .value.as_string = (x),                     \
       .type = log_record_msg_fmt_arg_type_string, \
     }
+
+#ifndef LOG_NO_SHORT_ARGS
+#define _str LOG_ARG_STR
+#endif
 
 #endif // #ifndef LOG_H
