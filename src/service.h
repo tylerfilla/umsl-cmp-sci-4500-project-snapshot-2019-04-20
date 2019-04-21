@@ -24,6 +24,18 @@ struct service {
    * @param svc The service definition
    */
   void (* on_stop)(struct service* svc);
+
+  /**
+   * Call a service.
+   *
+   * @param svc The service definition
+   * @param fn The function number
+   * @param arg1 An argument
+   * @param arg2 An argument
+   * @param ret An argument designed for return
+   * @return Zero on success, otherwise nonzero
+   */
+  int (* call)(struct service* svc, int fn, void* arg1, void* arg2, void** ret);
 };
 
 /**
@@ -39,5 +51,16 @@ void service_start(struct service* svc);
  * @param svc The service definition
  */
 void service_stop(struct service* svc);
+
+/**
+ * Call a service.
+ *
+ * @param svc The service definition
+ * @param fn The function number
+ * @param arg1 An argument
+ * @param arg2 An argument
+ * @param ret An argument designed for return
+ */
+void service_call(struct service* svc, int fn, void* arg1, void* arg2, void** ret);
 
 #endif // #ifndef SERVICE_H

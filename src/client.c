@@ -6,6 +6,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <pthread.h>
+
 #include <Python.h>
 
 #include "client.h"
@@ -564,6 +566,9 @@ static void append_paths() {
   Py_DECREF(sys);
 }
 
+/** Python thread state for main thread. */
+static PyThreadState* main_thread_state;
+
 /** Initialize the Python environment. */
 static void python_init() {
   LOGI("Python build {} {}", _str(Py_GetBuildInfo()), _str(Py_GetCompiler() + 1));
@@ -581,7 +586,11 @@ static void python_init() {
   PyObject* cstdout = PyImport_ImportModule("cstdout");
   if (!cstdout) {
     // Handle exception
-    return exception();
+    exception();
+
+    // Release GIL
+    main_thread_state = PyEval_SaveThread();
+    return;
   }
 
   // References:
@@ -594,7 +603,11 @@ static void python_init() {
     Py_DECREF(cstdout);
 
     // Handle exception
-    return exception();
+    exception();
+
+    // Release GIL
+    main_thread_state = PyEval_SaveThread();
+    return;
   }
 
   // References:
@@ -611,15 +624,19 @@ static void python_init() {
   // Append known paths
   append_paths();
 
-  PyRun_SimpleString("from cozmonaut.entry_point.interact import EntryPointInteract; EntryPointInteract().main({})");
-
   // Release references
   Py_DECREF(cstderr);
   Py_DECREF(cstdout);
+
+  // Release GIL
+  main_thread_state = PyEval_SaveThread();
 }
 
 /** Terminate the Python environment. */
 static void python_terminate() {
+  // Restore main thread state
+  PyEval_RestoreThread(main_thread_state);
+
   // Kill the Python VM
   if (Py_FinalizeEx() < 0) {
     LOGW("Unable to finalize the Python VM");
@@ -627,11 +644,183 @@ static void python_terminate() {
   }
 }
 
+/** The client thread. */
+static pthread_t client__thread;
+
+/** The client instance mutex. */
+static pthread_mutex_t client__mutex;
+
+/** The selected client operation. */
+static enum client_op client__selected_op;
+
+/**
+ * Main function for the client thread.
+ *
+ * @param ptr Not used
+ * @return Not used
+ */
+static void* client__thread_main(void* ptr) {
+  // Lock the instance mutex
+  pthread_mutex_lock(&client__mutex);
+
+  // Cache selected operation
+  enum client_op op = client__selected_op;
+
+  // Unlock the instance mutex
+  pthread_mutex_unlock(&client__mutex);
+
+  // Handle the operation
+  switch (op) {
+    case client_op_friend_list:
+      LOGF("FRIEND LIST NOT IMPLEMENTED");
+      abort();
+    case client_op_friend_remove:
+      LOGF("FRIEND REMOVE NOT IMPLEMENTED");
+      abort();
+    case client_op_interact: {
+      // Python code for the operation
+      static const char PYTHON_CODE[] =
+        "from cozmonaut.entry_point.interact import EntryPointInteract\n"
+        "ep = EntryPointInteract()\n"
+        "ep.main(args)\n";
+
+      // Acquire GIL
+      PyGILState_STATE state = PyGILState_Ensure();
+
+      // Import the __main__ module (new reference)
+      PyObject* main = PyImport_AddModule("__main__");
+      if (!main) {
+        // Handle exception
+        exception();
+
+        // Release GIL
+        PyGILState_Release(state);
+        return NULL;
+      }
+
+      // References
+      //  - main
+
+      // Get main module dictionary (new reference)
+      PyObject* dict = PyModule_GetDict(main);
+      if (!dict) {
+        // Release references
+        Py_DECREF(main);
+
+        // Handle exception
+        exception();
+
+        // Release GIL
+        PyGILState_Release(state);
+        return NULL;
+      }
+
+      // References
+      //  - main
+      //  - dict
+
+      // Create arguments dictionary (new reference)
+      PyObject* args = PyDict_New();
+      if (!args) {
+        // Release references
+        Py_DECREF(dict);
+        Py_DECREF(main);
+
+        // Handle exception
+        exception();
+
+        // Release GIL
+        PyGILState_Release(state);
+        return NULL;
+      }
+
+      // References
+      //  - main
+      //  - dict
+      //  - args
+
+      // Add arguments dictionary to module
+      if (PyDict_SetItemString(dict, "args", args) < 0) {
+        // Release references
+        Py_DECREF(args);
+        Py_DECREF(dict);
+        Py_DECREF(main);
+
+        // Handle exception
+        exception();
+
+        // Release GIL
+        PyGILState_Release(state);
+        return NULL;
+      }
+
+      // Run the operation Python code
+      if (!PyRun_String(PYTHON_CODE, Py_file_input, dict, dict)) {
+        // Release references
+        Py_DECREF(args);
+        Py_DECREF(dict);
+        Py_DECREF(main);
+
+        // Handle exception
+        exception();
+
+        // Release GIL
+        PyGILState_Release(state);
+        return NULL;
+      }
+
+      // Release references
+      Py_DECREF(args);
+      Py_DECREF(dict);
+      Py_DECREF(main);
+
+      // Release GIL
+      PyGILState_Release(state);
+      break;
+    }
+  }
+
+  return NULL;
+}
+
+/**
+ * Select the client operation.
+ *
+ * @param op The client operation
+ * @return Zero on success, otherwise nonzero
+ */
+static int client__call_select(enum client_op op) {
+  // Lock the instance mutex
+  pthread_mutex_lock(&client__mutex);
+
+  // Select operation
+  client__selected_op = op;
+
+  // Unlock the instance mutex
+  pthread_mutex_unlock(&client__mutex);
+}
+
+/**
+ * Start the client operation.
+ *
+ * @return Zero on success, otherwise nonzero
+ */
+static int client__call_start() {
+  // Lock the instance mutex
+  pthread_mutex_lock(&client__mutex);
+
+  // Start the client thread
+  pthread_create(&client__thread, NULL, &client__thread_main, NULL);
+
+  // Unlock the instance mutex
+  pthread_mutex_unlock(&client__mutex);
+}
+
 void client_on_start(struct service* svc) {
   LOGI("Client service started");
 
   // Bring up our Python environment
-  LOGD("Bringing up Python");
+  LOGD("Bringing up Python virtual machine");
   python_init();
 }
 
@@ -639,14 +828,26 @@ void client_on_stop(struct service* svc) {
   LOGI("Client service stopping");
 
   // Tear down our Python environment
-  LOGD("Tearing down Python");
+  LOGD("Tearing down Python virtual machine");
   python_terminate();
+}
+
+int client_call(struct service* svc, int fn, void* arg1, void* arg2, void** ret) {
+  switch (fn) {
+    case client_call_select:
+      return client__call_select((enum client_op) arg1);
+    case client_call_start:
+      return client__call_start();
+    default:
+      return 1;
+  }
 }
 
 static struct service service = {
   .name = "client",
   .on_start = &client_on_start,
   .on_stop = &client_on_stop,
+  .call = &client_call,
 };
 
 struct service* const SERVICE_CLIENT = &service;
