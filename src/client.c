@@ -46,6 +46,22 @@ static __thread char* cstdout_buf;
 /** The string length of the stdout buffer. */
 static __thread size_t cstdout_buf_len;
 
+static PyObject* cstdout_flush(PyObject* self, PyObject* args) {
+  // If text is buffered
+  if (cstdout_buf) {
+    // Log write-buffered text as info
+    LOGI("(stdout) {}", _str(cstdout_buf));
+
+    // Clear the write buffer
+    free(cstdout_buf);
+    cstdout_buf = NULL;
+    cstdout_buf_len = 0;
+  }
+
+  Py_INCREF(Py_None);
+  return Py_None;
+}
+
 static PyObject* cstdout_write(PyObject* self, PyObject* args) {
   // Unpack string value (no reference)
   char* string;
@@ -53,32 +69,62 @@ static PyObject* cstdout_write(PyObject* self, PyObject* args) {
     return NULL;
   }
 
-  // Get the length of the string
+  // Get string length
   size_t string_len = strlen(string);
 
-  // Copy the string into the write buffer
-  cstdout_buf = realloc(cstdout_buf, cstdout_buf_len + string_len + 1);
-  memcpy(cstdout_buf + cstdout_buf_len, string, string_len);
-  cstdout_buf_len += string_len;
-  cstdout_buf[cstdout_buf_len] = '\0';
+  // If the string has a newline
+  char* nl;
+  if ((nl = strchr(string, '\n')) != NULL) {
+    // Concatenate write-buffered text with first line of incoming text
+    size_t buf_len = cstdout_buf_len + (nl - string);
+    char* buf = malloc(buf_len + 1);
+    memcpy(buf, cstdout_buf, cstdout_buf_len);
+    memcpy(buf + cstdout_buf_len, string, string_len);
+    buf[buf_len] = '\0';
 
-  Py_INCREF(Py_None);
-  return Py_None;
-}
+    // Clear the write buffer
+    free(cstdout_buf);
+    cstdout_buf = NULL;
+    cstdout_buf_len = 0;
 
-static PyObject* cstdout_flush(PyObject* self, PyObject* args) {
-  // Log the buffered lines as info
-  char* save;
-  char* line = strtok_r(cstdout_buf, "\n", &save);
-  while (line) {
-    LOGI("(stdout) {}", _str(line));
-    line = strtok_r(NULL, "\n", &save);
+    // Log first line as info
+    LOGI("(stdout) {}", _str(buf));
+
+    // Free the concat buffer
+    free(buf);
+
+    // If text remains
+    if (nl + 1 != string + string_len) {
+      // Log intermediary lines
+      char* line_begin = nl + 1;
+      char* line_end = strchr(line_begin, '\n');
+      while (line_end != NULL) {
+        // Slice line and log it as info
+        *line_end = '\0';
+        LOGI("(stdout) {}", _str(line_begin));
+        *line_end = '\n';
+
+        // Advance to next line
+        line_begin = line_end + 1;
+        line_end = strchr(line_begin, '\n');
+      }
+
+      // If even more text remains, buffer it
+      if (line_begin) {
+        cstdout_buf_len = (string + string_len) - line_begin;
+        cstdout_buf = malloc(cstdout_buf_len + 1);
+        memcpy(cstdout_buf, line_begin, cstdout_buf_len);
+        cstdout_buf[cstdout_buf_len] = '\0';
+      }
+    }
+  } else {
+    // The string has no newline
+    // Buffer the whole string for later
+    cstdout_buf = realloc(cstdout_buf, cstdout_buf_len + string_len + 1);
+    memcpy(cstdout_buf + cstdout_buf_len, string, string_len);
+    cstdout_buf_len += string_len;
+    cstdout_buf[cstdout_buf_len] = '\0';
   }
-
-  // Clear the buffer
-  free(cstdout_buf);
-  cstdout_buf = NULL;
-  cstdout_buf_len = 0;
 
   Py_INCREF(Py_None);
   return Py_None;
@@ -87,13 +133,13 @@ static PyObject* cstdout_flush(PyObject* self, PyObject* args) {
 /** Methods for cstdout module. */
 static PyMethodDef cstdout_methods[] = {
   {
-    .ml_name = "write",
-    .ml_meth = cstdout_write,
+    .ml_name = "flush",
+    .ml_meth = cstdout_flush,
     .ml_flags = METH_VARARGS,
   },
   {
-    .ml_name = "flush",
-    .ml_meth = cstdout_flush,
+    .ml_name = "write",
+    .ml_meth = cstdout_write,
     .ml_flags = METH_VARARGS,
   },
   {},
@@ -122,6 +168,22 @@ static __thread char* cstderr_buf;
 /** The string length of the stderr buffer. */
 static __thread size_t cstderr_buf_len;
 
+static PyObject* cstderr_flush(PyObject* self, PyObject* args) {
+  // If text is buffered
+  if (cstderr_buf) {
+    // Log write-buffered text as an error
+    LOGE("(stderr) {}", _str(cstderr_buf));
+
+    // Clear the write buffer
+    free(cstderr_buf);
+    cstderr_buf = NULL;
+    cstderr_buf_len = 0;
+  }
+
+  Py_INCREF(Py_None);
+  return Py_None;
+}
+
 static PyObject* cstderr_write(PyObject* self, PyObject* args) {
   // Unpack string value (no reference)
   char* string;
@@ -129,32 +191,62 @@ static PyObject* cstderr_write(PyObject* self, PyObject* args) {
     return NULL;
   }
 
-  // Get the length of the string
+  // Get string length
   size_t string_len = strlen(string);
 
-  // Copy the string into the write buffer
-  cstderr_buf = realloc(cstderr_buf, cstderr_buf_len + string_len + 1);
-  memcpy(cstderr_buf + cstderr_buf_len, string, string_len);
-  cstderr_buf_len += string_len;
-  cstderr_buf[cstderr_buf_len] = '\0';
+  // If the string has a newline
+  char* nl;
+  if ((nl = strchr(string, '\n')) != NULL) {
+    // Concatenate write-buffered text with first line of incoming text
+    size_t buf_len = cstderr_buf_len + (nl - string);
+    char* buf = malloc(buf_len + 1);
+    memcpy(buf, cstderr_buf, cstderr_buf_len);
+    memcpy(buf + cstderr_buf_len, string, string_len);
+    buf[buf_len] = '\0';
 
-  Py_INCREF(Py_None);
-  return Py_None;
-}
+    // Clear the write buffer
+    free(cstderr_buf);
+    cstderr_buf = NULL;
+    cstderr_buf_len = 0;
 
-static PyObject* cstderr_flush(PyObject* self, PyObject* args) {
-  // Log the buffered lines as errors
-  char* save;
-  char* line = strtok_r(cstderr_buf, "\n", &save);
-  while (line) {
-    LOGE("(stderr) {}", _str(line));
-    line = strtok_r(NULL, "\n", &save);
+    // Log first line as an error
+    LOGE("(stderr) {}", _str(buf));
+
+    // Free the concat buffer
+    free(buf);
+
+    // If text remains
+    if (nl + 1 != string + string_len) {
+      // Log intermediary lines
+      char* line_begin = nl + 1;
+      char* line_end = strchr(line_begin, '\n');
+      while (line_end != NULL) {
+        // Slice line and log it as an error
+        *line_end = '\0';
+        LOGE("(stderr) {}", _str(line_begin));
+        *line_end = '\n';
+
+        // Advance to next line
+        line_begin = line_end + 1;
+        line_end = strchr(line_begin, '\n');
+      }
+
+      // If even more text remains, buffer it
+      if (line_begin) {
+        cstderr_buf_len = (string + string_len) - line_begin;
+        cstderr_buf = malloc(cstderr_buf_len + 1);
+        memcpy(cstderr_buf, line_begin, cstderr_buf_len);
+        cstderr_buf[cstderr_buf_len] = '\0';
+      }
+    }
+  } else {
+    // The string has no newline
+    // Buffer the whole string for later
+    cstderr_buf = realloc(cstderr_buf, cstderr_buf_len + string_len + 1);
+    memcpy(cstderr_buf + cstderr_buf_len, string, string_len);
+    cstderr_buf_len += string_len;
+    cstderr_buf[cstderr_buf_len] = '\0';
   }
-
-  // Clear the buffer
-  free(cstderr_buf);
-  cstderr_buf = NULL;
-  cstderr_buf_len = 0;
 
   Py_INCREF(Py_None);
   return Py_None;
@@ -163,13 +255,13 @@ static PyObject* cstderr_flush(PyObject* self, PyObject* args) {
 /** Methods for cstderr module. */
 static PyMethodDef cstderr_methods[] = {
   {
-    .ml_name = "write",
-    .ml_meth = cstderr_write,
+    .ml_name = "flush",
+    .ml_meth = cstderr_flush,
     .ml_flags = METH_VARARGS,
   },
   {
-    .ml_name = "flush",
-    .ml_meth = cstderr_flush,
+    .ml_name = "write",
+    .ml_meth = cstderr_write,
     .ml_flags = METH_VARARGS,
   },
   {},
@@ -394,22 +486,22 @@ static void exception() {
 
     LOGE("!!!  !!! !!! !!! !!! !!! !!! !!! !!! !!! !!!  !!!");
     LOGE("!!! A Python exception has occurred in C code !!!");
-    LOGE("!!!        (stack trace not available)        !!!");
     LOGE("!!!  !!! !!! !!! !!! !!! !!! !!! !!! !!! !!!  !!!");
     LOGE(" -> Type: {}", _str(type_string));
     LOGE(" -> Value: {}", _str(value_string));
     LOGE(" -> Traceback: {}", _str(traceback_string));
-    LOGE("~~~ END OF ERROR DETAILS ~~~");
 
     // Release references
     Py_DECREF(value_bytes);
     Py_DECREF(type_bytes);
-    Py_DECREF(traceback_repr);
-    Py_DECREF(value_repr);
-    Py_DECREF(type_repr);
-    Py_XDECREF(traceback); // nullable
-    Py_XDECREF(value); // nullable
-    Py_XDECREF(type); // nullable
+//  Py_XDECREF(traceback_repr);
+//  Py_XDECREF(value_repr);
+//  Py_XDECREF(type_repr);
+
+    // Restore the exception, print it, and clear it
+    PyErr_Restore(type, value, traceback);
+    PyErr_Print();
+    PyErr_Clear();
   }
 }
 
