@@ -16,13 +16,28 @@ class EntryPointInteract(EntryPoint):
     The entry point for interactive mode.
     """
 
+    def on_evt_new_raw_camera_image(self, evt: cozmo.robot.camera.EvtNewRawCameraImage, **kwargs):
+        """
+        Event handler for new camera frames.
+
+        :param evt: The event
+        :param kwargs: Remaining keyword arguments
+        """
+        print('got a camera frame')
+
     async def robot_main(self, robot: cozmo.robot.Robot):
         """
         The main function for individual robots.
 
         :param robot: The robot instance
         """
-        await robot.drive_off_charger_contacts().wait_for_completed()
+
+        # Enable color imaging on this Cozmo robot
+        robot.camera.image_stream_enabled = True
+        robot.camera.color_image_enabled = True
+
+        # Start listening for new camera frames
+        robot.camera.add_event_handler(cozmo.robot.camera.EvtNewRawCameraImage, self.on_evt_new_raw_camera_image)
 
     async def connection_main(self, conn: cozmo.conn.CozmoConnection):
         """
@@ -63,3 +78,7 @@ class EntryPointInteract(EntryPoint):
         # Run connection main function
         loop.run_until_complete(task)
         return 0
+
+
+# Stay put when starting up
+cozmo.robot.Robot.drive_off_charger_on_connect = False
