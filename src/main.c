@@ -16,7 +16,9 @@ int main() {
   service_call(SERVICE_CLIENT, client_call_select, (void*) client_op_interact, NULL, NULL);
   service_call(SERVICE_CLIENT, client_call_start, NULL, NULL, NULL);
 
-  sleep(10);
+  do {
+    sleep(1);
+  } while (1);
 
   // Stop the client service
   service_stop(SERVICE_CLIENT);

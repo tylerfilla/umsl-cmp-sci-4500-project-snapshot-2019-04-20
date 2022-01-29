@@ -1,3 +1,9 @@
 [submodule "third_party/fmt"]
 	path = third_party/fmt
 	url = https://github.com/fmtlib/fmt.git
+[submodule "third_party/klib"]
+	path = third_party/klib
+	url = https://github.com/attractivechaos/klib.git
+[submodule "third_party/spdyface"]
+	path = third_party/spdyface
+	url = git@github.com:tylerfilla/spdyface.git

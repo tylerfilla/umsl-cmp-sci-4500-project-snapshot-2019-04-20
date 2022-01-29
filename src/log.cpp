@@ -76,6 +76,15 @@ void log_submit(const log_record* rec) {
       case log_record_msg_fmt_arg::log_record_msg_fmt_arg_type_unsigned_long_long_int:
         args_vec.push_back(fmt::internal::make_arg<fmt::format_context>(arg.value.as_unsigned_long_long_int));
         break;
+      case log_record_msg_fmt_arg::log_record_msg_fmt_arg_type_float:
+        args_vec.push_back(fmt::internal::make_arg<fmt::format_context>(arg.value.as_float));
+        break;
+      case log_record_msg_fmt_arg::log_record_msg_fmt_arg_type_double:
+        args_vec.push_back(fmt::internal::make_arg<fmt::format_context>(arg.value.as_double));
+        break;
+      case log_record_msg_fmt_arg::log_record_msg_fmt_arg_type_long_double:
+        args_vec.push_back(fmt::internal::make_arg<fmt::format_context>(arg.value.as_long_double));
+        break;
       case log_record_msg_fmt_arg::log_record_msg_fmt_arg_type_string:
         args_vec.push_back(fmt::internal::make_arg<fmt::format_context>(arg.value.as_string));
         break;

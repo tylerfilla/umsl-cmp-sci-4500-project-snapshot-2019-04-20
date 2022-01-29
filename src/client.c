@@ -10,30 +10,829 @@
 
 #include <Python.h>
 
+#include <klib/khash.h>
+
 #include "client.h"
 #include "log.h"
 #include "service.h"
+#include "tracker.h"
 
 // TODO: Compute this eventually
 static const char* OUR_MODULE_PATH = "../python/";
 
+/** A hash map from integers to Python objects. */
+KHASH_MAP_INIT_INT64(i2py, PyObject*)
+
+//
+// base.Monitor class
+//
+// Part of base extension module.
+//
+
+/** An instance of the Monitor class. */
+typedef struct {
+  PyObject_HEAD
+
+  /** The ID of the associated robot. */
+  int robot_id;
+} MonitorObject;
+
+static int Monitor_init(MonitorObject* self, PyObject* args, PyObject* kwds) {
+  return 0;
+}
+
+static void Monitor_dealloc(MonitorObject* self) {
+  Py_TYPE(self)->tp_free(self);
+}
+
+static PyObject* Monitor_push_battery(MonitorObject* self, PyObject* args) {
+  // Unpack battery voltage (no reference)
+  double voltage;
+  if (!PyArg_ParseTuple(args, "d", &voltage)) {
+    // Forward exception
+    return NULL;
+  }
+
+  LOGI("Battery: {}", _d(voltage));
+
+  Py_INCREF(Py_None);
+  return Py_None;
+}
+
+static PyObject* Monitor_push_accelerometer(MonitorObject* self, PyObject* args) {
+  // Unpack accelerometer reading (no reference)
+  double x, y, z;
+  if (!PyArg_ParseTuple(args, "ddd", &x, &y, &z)) {
+    // Forward exception
+    return NULL;
+  }
+
+  LOGI("Accelerometer: ({}, {}, {})", _d(x), _d(y), _d(z));
+
+  Py_INCREF(Py_None);
+  return Py_None;
+}
+
+static PyObject* Monitor_push_gyroscope(MonitorObject* self, PyObject* args) {
+  // Unpack gyroscope reading (no reference)
+  double x, y, z;
+  if (!PyArg_ParseTuple(args, "ddd", &x, &y, &z)) {
+    // Forward exception
+    return NULL;
+  }
+
+  LOGI("Gyroscope: ({}, {}, {})", _d(x), _d(y), _d(z));
+
+  Py_INCREF(Py_None);
+  return Py_None;
+}
+
+static PyObject* Monitor_push_wheel_speeds(MonitorObject* self, PyObject* args) {
+  // Unpack gyroscope reading (no reference)
+  double l, r;
+  if (!PyArg_ParseTuple(args, "dd", &l, &r)) {
+    // Forward exception
+    return NULL;
+  }
+
+  LOGI("Left wheel: {}", _d(l));
+  LOGI("Right wheel: {}", _d(l));
+
+  Py_INCREF(Py_None);
+  return Py_None;
+}
+
+PyObject* Monitor_getter_delay_battery(MonitorObject* self, PyObject* args) {
+  Py_INCREF(Py_None);
+  return Py_None;
+}
+
+PyObject* Monitor_getter_delay_imu(MonitorObject* self, PyObject* args) {
+  Py_INCREF(Py_None);
+  return Py_None;
+}
+
+PyObject* Monitor_getter_delay_wheel_speeds(MonitorObject* self, PyObject* args) {
+  Py_INCREF(Py_None);
+  return Py_None;
+}
+
+/** Methods for base.Monitor class. */
+static PyMethodDef Monitor_methods[] = {
+  {
+    .ml_name = "push_battery",
+    .ml_meth = (PyCFunction) &Monitor_push_battery,
+    .ml_flags = METH_VARARGS,
+  },
+  {
+    .ml_name = "push_accelerometer",
+    .ml_meth = (PyCFunction) &Monitor_push_accelerometer,
+    .ml_flags = METH_VARARGS,
+  },
+  {
+    .ml_name = "push_gyroscope",
+    .ml_meth = (PyCFunction) &Monitor_push_gyroscope,
+    .ml_flags = METH_VARARGS,
+  },
+  {
+    .ml_name = "push_wheel_speeds",
+    .ml_meth = (PyCFunction) &Monitor_push_wheel_speeds,
+    .ml_flags = METH_VARARGS,
+  },
+  {
+  },
+};
+
+/** Getters and setters for base.Monitor class. */
+static PyGetSetDef Monitor_getset[] = {
+  {
+    .name = "delay_battery",
+    .get = (getter) &Monitor_getter_delay_battery,
+  },
+  {
+    .name = "delay_imu",
+    .get = (getter) &Monitor_getter_delay_imu,
+  },
+  {
+    .name = "delay_wheel_speeds",
+    .get = (getter) &Monitor_getter_delay_wheel_speeds,
+  },
+  {
+  },
+};
+
+/** The Monitor class. */
+static PyTypeObject MonitorType = {
+  PyVarObject_HEAD_INIT(NULL, 0)
+  .tp_name = "base.Module",
+  .tp_basicsize = sizeof(MonitorObject),
+  .tp_itemsize = 0,
+  .tp_dealloc = (destructor) &Monitor_dealloc,
+  .tp_flags = Py_TPFLAGS_DEFAULT,
+  .tp_methods = Monitor_methods,
+  .tp_getset = Monitor_getset,
+  .tp_init = (initproc) &Monitor_init,
+  .tp_new = &PyType_GenericNew,
+};
+
+//
+// base.Track class
+//
+// Part of base extension module.
+//
+
+/** An instance of the Track class. */
+typedef struct {
+  PyObject_HEAD
+
+  /** The track number. */
+  int number;
+} TrackObject;
+
+static int TrackObject_init(TrackObject* self, PyObject* args, PyObject* kwds) {
+  return 0;
+}
+
+static void TrackObject_dealloc(TrackObject* self) {
+  Py_TYPE(self)->tp_free(self);
+}
+
+/** The Track class. */
+static PyTypeObject TrackType = {
+  PyVarObject_HEAD_INIT(NULL, 0)
+  .tp_name = "base.Track",
+  .tp_basicsize = sizeof(TrackObject),
+  .tp_itemsize = 0,
+  .tp_dealloc = (destructor) &TrackObject_dealloc,
+  .tp_flags = Py_TPFLAGS_DEFAULT,
+  .tp_init = (initproc) &TrackObject_init,
+  .tp_new = &PyType_GenericNew,
+};
+
+
+//
+// base.Tracker class
+//
+// Part of base extension module.
+//
+
+/** An instance of the Tracker class. */
+typedef struct {
+  PyObject_HEAD
+
+  /** The face tracker. */
+  struct tracker* tracker;
+} TrackerObject;
+
+//
+// base.FutureTrack class
+//
+// Part of base extension module.
+//
+
+/** An instance of the FutureTrack class. */
+typedef struct {
+  PyObject_HEAD
+
+  /** The tracker. */
+  TrackerObject* tracker;
+} FutureTrackObject;
+
+//
+// base.FutureTrackIterator class
+//
+// Part of base extension module.
+//
+
+/** An instance of the FutureTrackIterator class. */
+typedef struct {
+  PyObject_HEAD
+
+  /** The future track. */
+  FutureTrackObject* future;
+} FutureTrackIteratorObject;
+
+static int FutureTrackIterator_init(FutureTrackIteratorObject* self, PyObject* args, PyObject* kwds) {
+  // Unpack future track object (no reference)
+  if (!PyArg_ParseTuple(args, "O", &self->future)) {
+    return 1;
+  }
+
+  // Take references on parameter objects
+  Py_INCREF(self->future);
+
+  return 0;
+}
+
+static void FutureTrackIterator_dealloc(FutureTrackIteratorObject* self) {
+  // Release references
+  Py_DECREF(self->future);
+
+  Py_TYPE(self)->tp_free(self);
+}
+
+static PyObject* FutureTrackIterator_iternext(FutureTrackIteratorObject* self) {
+  // This is the face tracker instance and the track number we're monitoring
+  struct tracker* tracker = self->future->tracker->tracker;
+
+  // Poll for a track-acquire event
+  struct tracker_event_acquire* evt;
+  tracker_poll_acquire(tracker, &evt);
+
+  // If an event was returned
+  if (evt) {
+    // Create track object (new reference)
+    TrackObject* track = (TrackObject*) PyObject_CallObject((PyObject*) &TrackType, NULL);
+    if (!track) {
+      // Forward exception
+      return NULL;
+    }
+
+    // References:
+    //   - track (keep on success)
+
+    // Store track number
+    track->number = evt->track;
+
+    // Create StopIteration exception (new reference)
+    PyObject* exc = PyObject_CallObject(PyExc_StopIteration, NULL);
+    if (!exc) {
+      // Release references
+      Py_DECREF(track);
+
+      // Forward exception
+      return NULL;
+    }
+
+    // References:
+    //   - track (keep on success)
+    //   - exc (keep on success)
+
+    // Store track object in the exception object
+    if (PyObject_SetAttrString(exc, "value", (PyObject*) track) < 0) {
+      // Release references
+      Py_DECREF(exc);
+      Py_DECREF(track);
+
+      // Forward exception
+      return NULL;
+    }
+
+    // References:
+    //   - track (keep on success)
+    //   - exc (keep on success)
+
+    // Raise the StopIteration to cancel the await statement with the set value
+    PyErr_SetObject(PyExc_StopIteration, exc);
+    return NULL;
+  }
+
+  Py_INCREF(Py_None);
+  return Py_None;
+}
+
+/** The FutureTrackIterator class. */
+static PyTypeObject FutureTrackIteratorType = {
+  PyVarObject_HEAD_INIT(NULL, 0)
+  .tp_name = "base.FutureTrackIterator",
+  .tp_basicsize = sizeof(FutureTrackIteratorObject),
+  .tp_itemsize = 0,
+  .tp_dealloc = (destructor) &FutureTrackIterator_dealloc,
+  .tp_flags = Py_TPFLAGS_DEFAULT,
+  .tp_iternext = (iternextfunc) &FutureTrackIterator_iternext,
+  .tp_init = (initproc) &FutureTrackIterator_init,
+  .tp_new = &PyType_GenericNew,
+};
+
+//
+// base.FutureTrack class (cont.)
+//
+// Part of base extension module.
+//
+
+static int FutureTrack_init(FutureTrackObject* self, PyObject* args, PyObject* kwds) {
+  // Unpack tracker object (no reference)
+  if (!PyArg_ParseTuple(args, "O", &self->tracker)) {
+    return 1;
+  }
+
+  // Take references on parameter objects
+  Py_INCREF(self->tracker);
+
+  return 0;
+}
+
+static void FutureTrack_dealloc(FutureTrackObject* self) {
+  // Release references
+  Py_XDECREF(self->tracker); // nullable
+
+  Py_TYPE(self)->tp_free(self);
+}
+
+static PyObject* FutureTrack_am_await(PyObject* self) {
+  // Create future track iterator (new reference)
+  FutureTrackIteratorObject* iterator = (FutureTrackIteratorObject*) PyObject_CallFunction(
+    (PyObject*) &FutureTrackIteratorType, "O", self);
+  if (!iterator) {
+    // Forward exception
+    return NULL;
+  }
+
+  return (PyObject*) iterator;
+}
+
+/** Asynchronous methods on FutureTrack type. */
+static PyAsyncMethods FutureTrack_as_async = {
+  .am_await = FutureTrack_am_await,
+};
+
+/** The FutureTrack class. */
+static PyTypeObject FutureTrackType = {
+  PyVarObject_HEAD_INIT(NULL, 0)
+  .tp_name = "base.FutureTrack",
+  .tp_basicsize = sizeof(FutureTrackObject),
+  .tp_itemsize = 0,
+  .tp_dealloc = (destructor) &FutureTrack_dealloc,
+  .tp_as_async = &FutureTrack_as_async,
+  .tp_flags = Py_TPFLAGS_DEFAULT,
+  .tp_init = (initproc) &FutureTrack_init,
+  .tp_new = &PyType_GenericNew,
+};
+
+//
+// base.Tracker class (cont.)
+//
+// Part of base extension module.
+//
+
+static int Tracker_init(TrackerObject* self, PyObject* args, PyObject* kwds) {
+  // Create face tracker
+  self->tracker = tracker_new();
+
+  return 0;
+}
+
+static void Tracker_dealloc(TrackerObject* self) {
+  // Destroy face tracker
+  tracker_delete(self->tracker);
+
+  Py_TYPE(self)->tp_free(self);
+}
+
+PyObject* Tracker_push_camera(TrackerObject* self, PyObject* args) {
+  // Unpack PIL image frame (no reference)
+  PyObject* image;
+  if (!PyArg_ParseTuple(args, "O", &image)) {
+    // Forward exception
+    return NULL;
+  }
+
+  // Acquire reference on image
+  Py_INCREF(image);
+
+  // References:
+  //  - image
+
+  // Look up tobytes() function on image (new reference)
+  PyObject* tobytes = PyObject_GetAttrString(image, "tobytes");
+  if (!tobytes) {
+    // Release references
+    Py_DECREF(image);
+
+    // Forward exception
+    return NULL;
+  }
+
+  // References:
+  //  - image
+  //  - tobytes
+
+  // Obtain bytes for image (new reference)
+  PyObject* image_bytes = PyObject_CallObject(tobytes, NULL);
+  if (!image_bytes) {
+    // Release references
+    Py_DECREF(tobytes);
+    Py_DECREF(image);
+
+    // Forward exception
+    return NULL;
+  }
+
+  // References:
+  //  - image
+  //  - tobytes
+  //  - image_bytes
+
+  // Look up width object (new reference)
+  PyObject* image_width = PyObject_GetAttrString(image, "width");
+  if (!image_width) {
+    // Release references
+    Py_DECREF(image_bytes);
+    Py_DECREF(tobytes);
+    Py_DECREF(image);
+
+    // Forward exception
+    return NULL;
+  }
+
+  // References:
+  //  - image
+  //  - tobytes
+  //  - image_bytes
+  //  - image_width
+
+  // Look up height object (new reference)
+  PyObject* image_height = PyObject_GetAttrString(image, "height");
+  if (!image_height) {
+    // Release references
+    Py_DECREF(image_width);
+    Py_DECREF(image_bytes);
+    Py_DECREF(tobytes);
+    Py_DECREF(image);
+
+    // Forward exception
+    return NULL;
+  }
+
+  // References:
+  //  - image
+  //  - tobytes
+  //  - image_bytes
+  //  - image_width
+  //  - image_height
+
+  // Get image width
+  int width = (int) PyLong_AsLong(image_width);
+
+  // Get image height
+  int height = (int) PyLong_AsLong(image_height);
+
+  // Get image data
+  char* data = PyBytes_AsString(image_bytes);
+
+  // Submit image as the tracking frame
+  // The tracker will do a copy, so we don't have to
+  tracker_submit_frame(self->tracker, width, height, data);
+
+  // Release references
+  Py_DECREF(image_height);
+  Py_DECREF(image_width);
+  Py_DECREF(image_bytes);
+  Py_DECREF(tobytes);
+  Py_DECREF(image);
+
+  Py_INCREF(Py_None);
+  return Py_None;
+}
+
+PyObject* Tracker_wait_for_new_track(TrackerObject* self, PyObject* args) {
+  // Create future track object (new reference)
+  FutureTrackObject* future = (FutureTrackObject*) PyObject_CallFunction((PyObject*) &FutureTrackType, "O", self);
+  if (!future) {
+    // Forward exception
+    return NULL;
+  }
+
+  return (PyObject*) future;
+}
+
+/** Methods for base.Tracker class. */
+static PyMethodDef Tracker_methods[] = {
+  {
+    .ml_name = "push_camera",
+    .ml_meth = (PyCFunction) Tracker_push_camera,
+    .ml_flags = METH_VARARGS,
+  },
+  {
+    .ml_name = "wait_for_new_track",
+    .ml_meth = (PyCFunction) Tracker_wait_for_new_track,
+    .ml_flags = METH_VARARGS,
+  },
+  {
+  },
+};
+
+/** The Tracker class. */
+static PyTypeObject TrackerType = {
+  PyVarObject_HEAD_INIT(NULL, 0)
+  .tp_name = "base.Tracker",
+  .tp_basicsize = sizeof(TrackerObject),
+  .tp_itemsize = 0,
+  .tp_dealloc = (destructor) &Tracker_dealloc,
+  .tp_flags = Py_TPFLAGS_DEFAULT,
+  .tp_methods = Tracker_methods,
+  .tp_init = (initproc) &Tracker_init,
+  .tp_new = &PyType_GenericNew,
+};
+
 //
 // base extension module
 //
+
+/** The monitor map. */
+static khash_t(i2py)* map_monitor;
+
+/** The tracker map. */
+static khash_t(i2py)* map_tracker;
+
+static PyObject* base_add_robot(PyObject* self, PyObject* args) {
+  // Unpack robot ID (no reference)
+  int robot_id;
+  if (!PyArg_ParseTuple(args, "i", &robot_id)) {
+    // Forward exception
+    return NULL;
+  }
+
+  // Create a new monitor object (new reference)
+  MonitorObject* monitor = (MonitorObject*) PyObject_CallObject((PyObject*) &MonitorType, NULL);
+  if (!monitor) {
+    // Forward exception
+    return NULL;
+  }
+
+  // References:
+  //  - monitor (keep on success)
+
+  // Create a new tracker object (new reference)
+  TrackerObject* tracker = (TrackerObject*) PyObject_CallObject((PyObject*) &TrackerType, NULL);
+  if (!tracker) {
+    // References:
+    //  - monitor (keep on success)
+
+    // Release references
+    Py_DECREF(monitor);
+
+    // Forward exception
+    return NULL;
+  }
+
+  // References:
+  //  - monitor (keep on success)
+  //  - tracker (keep on success)
+
+  khiter_t it;
+  int ret;
+
+  // Key this robot ID into the monitor map
+  it = kh_put(i2py, map_monitor, (khint64_t) robot_id, &ret);
+
+  // Store monitor object in monitor map
+  kh_val(map_monitor, robot_id) = (PyObject*) monitor;
+
+  // Key this robot ID into the tracker map
+  it = kh_put(i2py, map_tracker, (khint64_t) robot_id, &ret);
+
+  // Store tracker object in tracker map
+  kh_val(map_tracker, robot_id) = (PyObject*) tracker;
+
+  // TODO: Clean up the maps
+
+  Py_INCREF(Py_None);
+  return Py_None;
+}
+
+static PyObject* base_get_monitor(PyObject* self, PyObject* args) {
+  // Unpack robot ID (no reference)
+  int robot_id;
+  if (!PyArg_ParseTuple(args, "i", &robot_id)) {
+    // Forward exception
+    return NULL;
+  }
+
+  // Look up monitor for robot
+  khiter_t it = kh_get(i2py, map_monitor, (khint64_t) robot_id);
+
+  // If no mapping exists, return none
+  if (it == kh_end(map_monitor)) {
+    Py_INCREF(Py_None);
+    return Py_None;
+  }
+
+  // Get mapped monitor
+  MonitorObject* monitor = (MonitorObject*) kh_val(map_monitor, it);
+
+  // Return monitor
+  Py_INCREF(monitor);
+  return (PyObject*) monitor;
+}
+
+static PyObject* base_get_tracker(PyObject* self, PyObject* args) {
+  // Unpack robot ID (no reference)
+  int robot_id;
+  if (!PyArg_ParseTuple(args, "i", &robot_id)) {
+    // Forward exception
+    return NULL;
+  }
+
+  // Look up tracker for robot
+  khiter_t it = kh_get(i2py, map_tracker, (khint64_t) robot_id);
+
+  // If no mapping exists, return none
+  if (it == kh_end(map_tracker)) {
+    Py_INCREF(Py_None);
+    return Py_None;
+  }
+
+  // Get mapped tracker
+  TrackerObject* tracker = (TrackerObject*) kh_val(map_tracker, it);
+
+  // Return tracker
+  Py_INCREF(tracker);
+  return (PyObject*) tracker;
+}
+
+/** Methods for base module. */
+static PyMethodDef base_methods[] = {
+  {
+    .ml_name = "add_robot",
+    .ml_meth = base_add_robot,
+    .ml_flags = METH_VARARGS,
+  },
+  {
+    .ml_name = "get_monitor",
+    .ml_meth = base_get_monitor,
+    .ml_flags = METH_VARARGS,
+  },
+  {
+    .ml_name = "get_tracker",
+    .ml_meth = base_get_tracker,
+    .ml_flags = METH_VARARGS,
+  },
+  {
+  },
+};
 
 /** Definition for base module. */
 static PyModuleDef base_module = {
   PyModuleDef_HEAD_INIT,
   .m_name = "base",
   .m_size = -1,
+  .m_methods = base_methods,
 };
 
 /** Initialize base module. */
 static PyMODINIT_FUNC PyInit_base() {
+  // Ensure Monitor type is ready
+  if (PyType_Ready(&MonitorType) < 0) {
+    // Forward exception
+    return NULL;
+  }
+
+  // Ensure Tracker type is ready
+  if (PyType_Ready(&TrackerType) < 0) {
+    // Forward exception
+    return NULL;
+  }
+
+  // Ensure FutureTrack type is ready
+  if (PyType_Ready(&FutureTrackType) < 0) {
+    // Forward exception
+    return NULL;
+  }
+
+  // Ensure FutureTrackIterator type is ready
+  if (PyType_Ready(&FutureTrackIteratorType) < 0) {
+    // Forward exception
+    return NULL;
+  }
+
+  // Ensure Track type is ready
+  if (PyType_Ready(&TrackType) < 0) {
+    // Forward exception
+    return NULL;
+  }
+
   // Create module instance
   PyObject* m = PyModule_Create(&base_module);
 
-  // TODO: Add classes
+  // References:
+  //  - m (keep on success)
+
+  // Add Monitor type object to base module (steals reference
+  Py_INCREF(&MonitorType);
+  if (PyModule_AddObject(m, "Monitor", (PyObject*) &MonitorType) < 0) {
+    // References:
+    //  - m (keep on success)
+
+    // Release references
+    Py_DECREF(m);
+
+    // Forward exception
+    return NULL;
+  }
+
+  // References:
+  //  - m (keep on success)
+
+  // Add Tracker type object to base module (steals reference)
+  Py_INCREF(&TrackerType);
+  if (PyModule_AddObject(m, "Tracker", (PyObject*) &TrackerType) < 0) {
+    // References:
+    //  - m (keep on success)
+
+    // Release references
+    Py_DECREF(m);
+
+    // Forward exception
+    return NULL;
+  }
+
+  // References:
+  //  - m (keep on success)
+
+  // Add FutureTrack type object to base module (steals reference)
+  Py_INCREF(&FutureTrackType);
+  if (PyModule_AddObject(m, "FutureTrack", (PyObject*) &FutureTrackType) < 0) {
+    // References:
+    //  - m (keep on success)
+
+    // Release references
+    Py_DECREF(m);
+
+    // Forward exception
+    return NULL;
+  }
+
+  // References:
+  //  - m (keep on success)
+
+  // Add FutureTrackIterator type object to base module (steals reference)
+  Py_INCREF(&FutureTrackIteratorType);
+  if (PyModule_AddObject(m, "FutureTrackIterator", (PyObject*) &FutureTrackIteratorType) < 0) {
+    // References:
+    //  - m (keep on success)
+
+    // Release references
+    Py_DECREF(m);
+
+    // Forward exception
+    return NULL;
+  }
+
+  // References:
+  //  - m (keep on success)
+
+  // Add Track type object to base module (steals reference)
+  Py_INCREF(&TrackType);
+  if (PyModule_AddObject(m, "Track", (PyObject*) &TrackType) < 0) {
+    // References:
+    //  - m (keep on success)
+
+    // Release references
+    Py_DECREF(m);
+
+    // Forward exception
+    return NULL;
+  }
+
+  // References:
+  //  - m (keep on success)
+
+  // Initialize monitor map
+  map_monitor = kh_init(i2py);
+
+  // Initialize tracker map
+  map_tracker = kh_init(i2py);
 
   return m;
 }
@@ -798,6 +1597,8 @@ static int client__call_select(enum client_op op) {
 
   // Unlock the instance mutex
   pthread_mutex_unlock(&client__mutex);
+
+  return 0;
 }
 
 /**
@@ -814,6 +1615,8 @@ static int client__call_start() {
 
   // Unlock the instance mutex
   pthread_mutex_unlock(&client__mutex);
+
+  return 0;
 }
 
 void client_on_start(struct service* svc) {

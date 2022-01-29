@@ -52,6 +52,9 @@ struct log_record_msg_fmt_arg {
     unsigned long int as_unsigned_long_int;
     signed long long int as_signed_long_long_int;
     unsigned long long int as_unsigned_long_long_int;
+    float as_float;
+    double as_double;
+    long double as_long_double;
     const char* as_string;
   } value;
 
@@ -68,6 +71,9 @@ struct log_record_msg_fmt_arg {
     log_record_msg_fmt_arg_type_unsigned_long_int,
     log_record_msg_fmt_arg_type_signed_long_long_int,
     log_record_msg_fmt_arg_type_unsigned_long_long_int,
+    log_record_msg_fmt_arg_type_float,
+    log_record_msg_fmt_arg_type_double,
+    log_record_msg_fmt_arg_type_long_double,
     log_record_msg_fmt_arg_type_string,
   } type;
 };
@@ -323,6 +329,51 @@ void log_submit(const struct log_record* rec);
 
 #ifndef LOG_NO_SHORT_ARGS
 #define _ull LOG_ARG_ULL
+#endif
+
+/**
+ * Annotate a float format argument.
+ *
+ * @param x The argument
+ */
+#define LOG_ARG_F(x)                              \
+    (struct log_record_msg_fmt_arg) {             \
+      .value.as_float = (x),                      \
+      .type = log_record_msg_fmt_arg_type_float,  \
+    }
+
+#ifndef LOG_NO_SHORT_ARGS
+#define _f LOG_ARG_F
+#endif
+
+/**
+ * Annotate a double format argument.
+ *
+ * @param x The argument
+ */
+#define LOG_ARG_D(x)                              \
+    (struct log_record_msg_fmt_arg) {             \
+      .value.as_double = (x),                     \
+      .type = log_record_msg_fmt_arg_type_double, \
+    }
+
+#ifndef LOG_NO_SHORT_ARGS
+#define _d LOG_ARG_D
+#endif
+
+/**
+ * Annotate a long double format argument.
+ *
+ * @param x The argument
+ */
+#define LOG_ARG_LD(x)                                   \
+    (struct log_record_msg_fmt_arg) {                   \
+      .value.as_long_double = (x),                      \
+      .type = log_record_msg_fmt_arg_type_long_double,  \
+    }
+
+#ifndef LOG_NO_SHORT_ARGS
+#define _ld LOG_ARG_LD
 #endif
 
 /**

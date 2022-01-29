@@ -6,7 +6,9 @@
 import asyncio
 from typing import Any, Dict, Text
 
-import cozmo
+import PIL.Image
+import base
+import cv2
 
 from cozmonaut.entry_point import EntryPoint
 
@@ -16,107 +18,44 @@ class EntryPointInteract(EntryPoint):
     The entry point for interactive mode.
     """
 
-    def on_evt_new_raw_camera_image(self, evt: cozmo.robot.camera.EvtNewRawCameraImage, **kwargs):
-        """
-        Event handler for new camera frames.
+    def __init__(self):
+        # Add a robot
+        base.add_robot(0)
 
-        :param evt: The event
-        :param kwargs: Remaining keyword arguments
-        """
+        # Get monitor and tracker
+        self.monitor = base.get_monitor(0)
+        self.tracker = base.get_tracker(0)
 
-    async def robot_main(self, robot: cozmo.robot.Robot):
-        """
-        The main function for a robot.
+        # Open first video capture device
+        self.capture = cv2.VideoCapture(0)
 
-        :param robot: The robot instance
-        """
-
-        # Enable color imaging on this Cozmo robot
-        robot.camera.image_stream_enabled = True
-        robot.camera.color_image_enabled = True
-
-        # Start listening for new camera frames
-        robot.camera.add_event_handler(cozmo.robot.camera.EvtNewRawCameraImage, self.on_evt_new_raw_camera_image)
-
-        # Go for a drive
-        # TODO: Actually do our work
-        await robot.drive_off_charger_contacts().wait_for_completed()
-        await robot.drive_straight(distance=cozmo.util.Distance(distance_mm=500),
-                                   speed=cozmo.util.Speed(speed_mmps=50)).wait_for_completed()
-
-    async def robot_battery_voltage_monitor_loop(self, robot: cozmo.robot.Robot):
-        """
-        The battery voltage monitor loop for a robot.
-
-        :param robot: The robot voltage
-        """
-
+    async def capture_loop(self):
         while True:
-            battery_voltage = robot.battery_voltage
+            # Get the next frame
+            ret, frame = self.capture.read()
 
-            print(battery_voltage)
+            # Show the frame
+            cv2.imshow('Output', frame)
 
-            # Target 0.5 Hz
-            await asyncio.sleep(2)
+            # Send the camera frame off for face tracking
+            self.tracker.push_camera(PIL.Image.fromarray(frame))
 
-    async def robot_imu_monitor_loop(self, robot: cozmo.robot.Robot):
-        """
-        The inertial motion unit (IMU) monitor loop for a robot.
+            # Poll window and stop on Q key down
+            if cv2.waitKey(1) == ord('q'):
+                break
 
-        :param robot: The robot voltage
-        """
+            # Yield control
+            await asyncio.sleep(0)
 
+    async def face_loop(self):
         while True:
-            accelerometer = robot.accelerometer.x_y_z
-            gyro = robot.gyro.x_y_z
+            # Wait for a new track
+            track = await self.tracker.wait_for_new_track()
 
-            # Target 10 Hz
-            await asyncio.sleep(0.1)
+            print(f'a new track was found: {track}')
 
-    async def robot_wheel_speed_monitor_loop(self, robot: cozmo.robot.Robot):
-        """
-        The wheel speed monitor loop for a robot.
-
-        :param robot: The robot instance
-        """
-
-        while True:
-            speed_left = robot.left_wheel_speed.speed_mmps
-            speed_right = robot.right_wheel_speed.speed_mmps
-
-            # Target 10 Hz
-            await asyncio.sleep(0.1)
-
-    async def robot_monitor_loop(self, robot: cozmo.robot.Robot):
-        """
-        The main monitor loop for a robot.
-
-        :param robot: The robot instance
-        """
-
-        # Delegate to subsystem monitor loops
-        # This allows much finer control of timing for various subsystems
-        # That way, e.g., wheel speed polling can be 10 Hz and battery polling can be < 1 Hz
-        await asyncio.gather(
-            asyncio.ensure_future(self.robot_battery_voltage_monitor_loop(robot)),
-            asyncio.ensure_future(self.robot_imu_monitor_loop(robot)),
-            asyncio.ensure_future(self.robot_wheel_speed_monitor_loop(robot)),
-        )
-
-    async def connection_main(self, conn: cozmo.conn.CozmoConnection):
-        """
-        The main function for SDK connections.
-
-        :param conn: The SDK connection
-        """
-        # Get the robot for the connection
-        robot = await conn.wait_for_robot()
-
-        # Run main function and sensor loop for robot
-        await asyncio.gather(
-            asyncio.ensure_future(self.robot_main(robot)),
-            asyncio.ensure_future(self.robot_monitor_loop(robot)),
-        )
+            # Yield control
+            await asyncio.sleep(0)
 
     def main(self, args: Dict[Text, Any]) -> int:
         """
@@ -132,20 +71,12 @@ class EntryPointInteract(EntryPoint):
         :return: The exit code (zero for success, otherwise nonzero)
         """
 
-        # Get the event loop
+        # Get event loop
         loop = asyncio.get_event_loop()
 
-        # Make an SDK connection
-        # This only supports one Cozmo at a time for now
-        conn = cozmo.connect_on_loop(loop, connector=cozmo.AndroidConnector(adb_cmd='/home/tyler/.local/bin/adb'))
-
-        # Start main function for connection
-        task = asyncio.ensure_future(self.connection_main(conn))
-
-        # Run connection main function
-        loop.run_until_complete(task)
+        # Run coroutines
+        loop.run_until_complete(asyncio.gather(
+            self.capture_loop(),
+            self.face_loop(),
+        ))
         return 0
-
-
-# Stay put when starting up
-cozmo.robot.Robot.drive_off_charger_on_connect = False
